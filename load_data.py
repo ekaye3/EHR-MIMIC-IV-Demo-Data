@@ -1,12 +1,11 @@
-# loads the csv files from the specified folder holding the hosp and icu data folders and then shows the tables
-from unicodedata import name
-
+# This functiono loads the csv files from the specified folder ("data" here) holding the hosp and icu csv files and then shows the tables
+# The table is saved into a duckdb database file called mimic_demo_dataTab.duckdb in the current working directory.
 import duckdb, pathlib
 
-fileLoc = pathlib.Path("data") # put the path to the folder containing the hosp and icu folders in place of "data"
+# put the path to the folder containing the hosp and icu folders in place of "data"
+fileLoc = pathlib.Path("data") 
 
-
-with duckdb.connect("mimic_demo.duckdb") as con:
+with duckdb.connect("mimic_demo_datadataTab.duckdb") as con:
 
     for folder in ["hosp", "icu"]:
         filesFound = sorted((fileLoc / folder).glob("*.csv*"))
@@ -25,5 +24,5 @@ with duckdb.connect("mimic_demo.duckdb") as con:
                 escape = '"',
                 sample_size = -1)
             """)
-            
+
     print(con.sql("SHOW ALL TABLES"))
