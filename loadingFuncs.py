@@ -1,4 +1,4 @@
-import duckdb, pathlib
+import duckdb, pathlib, sys
 
 def load_data(dataDir, TableSaveName):
     # This function loads the csv files from the specified folder ("data" here) holding the hosp and icu csv files and then shows the tables
@@ -28,24 +28,39 @@ def load_data(dataDir, TableSaveName):
                 """)
 
         print(con.sql("SHOW ALL TABLES"))
-        return ('Data loaded into duckdb database file: ' + TableSaveName + '.duckdb')
+        return ("Data loaded into duckdb database file: " + TableSaveName + ".duckdb")
 
 
-def quality_checks(duckdbTableName):
+def quality_checks(dataDir,duckdbTableName):
     # This function checks the data in the duckdb database file for duplicates and missing values
+    fileLoc = pathlib.Path(dataDir);
+    failedTests = 0;
+
+    # Table names we expect: one per CSV file
+    expected = {f.name.split(".")[0] for f in fileLoc.rglob("*.csv*")}
+    # actual loaded tables
     with duckdb.connect(duckdbTableName+".duckdb", read_only=True) as con:
-        # Check for duplicates
-        duplicates = con.sql(f"SELECT * FROM {duckdbTableName} GROUP BY * HAVING COUNT(*) > 1").fetchall()
-        
-        if duplicates:
-            print(f"Found {len(duplicates)} duplicate rows in {duckdbTableName}.")
-        else:
-            print(f"No duplicate rows found in {duckdbTableName}.")
-        
-        # Check for missing values
-        missing_values = con.sql(f"SELECT * FROM {duckdbTableName} WHERE {' OR '.join([f'{col} IS NULL' for col in con.sql(f'PRAGMA table_info({duckdbTableName})').fetchall()])}").fetchall()
-        if missing_values:
-            print(f"Found {len(missing_values)} rows with missing values in {duckdbTableName}.")
-        else:
-            print(f"No missing values found in {duckdbTableName}.")
-        
+        actual = set(con.sql("SHOW TABLES").df().iloc[:,0])
+
+        # Row count per table (ensure there is something, hopefully data, in each table)
+        for t in sorted(actual):
+            n = con.sql(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            print(f"{t:25s} {n:>10,} rows")
+            if n == 0:
+                print(f"FAIL: {t} is empty")
+                failedTests += 1
+  
+
+    ## Check that all csv files were loaded into the duckdb database file
+    missing = expected - actual   # CSV exists, table doesn't
+    extra = actual - expected     # table exists, no CSV
+
+    if missing:
+        print("FAIL: CSVs with no table:", sorted(missing))
+        failedTests += 1
+    if extra:
+        print("FAIL: tables with no CSV:", sorted(extra))
+        failedTests += 1
+
+    print("\nPASSED" if failedTests == 0 else f"\n{failedTests} check(s) FAILED")
+    # sys.exit(1 if failedTests else 0)
